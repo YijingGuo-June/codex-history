@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Codex History</title>
+  <link rel="stylesheet" href="/vendor/katex.css?token=__TOKEN__">
+  <link rel="stylesheet" href="/viewer.css?token=__TOKEN__">
+  <script defer src="/vendor/marked.js?token=__TOKEN__"></script>
+  <script defer src="/vendor/purify.js?token=__TOKEN__"></script>
+  <script defer src="/vendor/katex.js?token=__TOKEN__"></script>
+  <script defer src="/vendor/prism.js?token=__TOKEN__"></script>
+  <script defer src="/vendor/prism-python.js?token=__TOKEN__"></script>
+  <script defer src="/vendor/prism-bash.js?token=__TOKEN__"></script>
+  <script defer src="/vendor/prism-json.js?token=__TOKEN__"></script>
+  <script defer src="/vendor/prism-rust.js?token=__TOKEN__"></script>
+  <script defer src="/vendor/prism-typescript.js?token=__TOKEN__"></script>
+  <script defer src="/viewer.js?token=__TOKEN__"></script>
+</head>
+<body>
+  <aside class="sidebar" aria-label="Question navigation">
+    <a class="brand" href="#"><span class="brand-icon">↗</span><span>codex<span class="brand-sub">history</span></span><span class="version">LOCAL</span></a>
+    <div class="sidebar-intro"><p class="eyebrow">THE CONVERSATION, INDEXED</p><h1>Find your place.</h1><p>Every question. The whole story.</p></div>
+    <button id="open-picker" class="search-trigger"><span>⌕ &nbsp; Jump to a question</span><kbd>⌘ K</kbd></button>
+    <div class="index-heading"><span>QUESTIONS</span><span id="question-count">—</span></div>
+    <nav id="questions" aria-label="Questions in this conversation"></nav>
+    <footer class="sidebar-footer"><span class="status-dot"></span> Stays on your computer.<br><span class="footer-note">No uploads. No analytics. No CDN.</span></footer>
+  </aside>
+  <section class="workspace">
+    <header class="toolbar">
+      <div class="breadcrumb"><span class="little-mark">↗</span><span>Conversation</span><span class="crumb-divider">/</span><span id="session-label">Loading…</span></div>
+      <div class="toolbar-actions">
+        <button id="refresh" class="quiet-button" title="Check for new messages">↻ <span>Refresh</span></button>
+        <button id="toggle-details" class="filter-button" aria-pressed="true" title="Hide or show activity: Ctrl+H, or Alt+H if your browser reserves Ctrl+H"><span class="toggle-track"><span></span></span><span>Answers only</span><kbd>⌃ H</kbd></button>
+        <button id="theme" class="icon-button" aria-label="Switch color theme" title="Switch theme">◐</button>
+      </div>
+    </header>
+    <div id="notice" role="status" hidden></div>
+    <main id="reader" tabindex="-1">
+      <div class="reading-column">
+        <div class="document-heading"><div class="eyebrow">CODEX HISTORY <span>/</span> <span id="source-label">LOCAL ARCHIVE</span></div><h2>Room to read.</h2><p>Your questions and answers, with a little more breathing room.</p><div class="document-meta"><span id="document-count">Loading conversation</span><span class="meta-dot">·</span><span>Markdown & math, beautifully readable</span></div></div>
+        <div id="messages" aria-label="Conversation transcript"></div>
+        <div id="empty" hidden><h3>No questions yet.</h3><p>This conversation has no saved user messages. Refresh after your first exchange.</p></div>
+        <div class="document-end"><span>✳</span><p>You're all caught up.</p><small>Go back to Codex to keep the conversation going.</small></div>
+      </div>
+    </main>
+  </section>
+  <dialog id="picker" aria-labelledby="picker-title">
+    <div class="picker-header"><span class="search-symbol">⌕</span><input id="query" type="search" placeholder="Search your questions…" autocomplete="off" aria-label="Search questions"><button id="close-picker" aria-label="Close question picker"><kbd>esc</kbd></button></div>
+    <div class="picker-caption"><span id="picker-title">JUMP TO A QUESTION</span><span id="matches"></span></div>
+    <div id="results" role="listbox" aria-label="Matching questions"></div>
+    <div class="picker-footer"><span><kbd>↑</kbd><kbd>↓</kbd> to navigate</span><span><kbd>↵</kbd> to jump</span><span>Context stays intact.</span></div>
+  </dialog>
+</body>
+</html>

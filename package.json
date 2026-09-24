@@ -1,0 +1,8 @@
+{
+  "name": "codex-history-dev",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Build-only dependencies. The installed plugin needs no npm install.",
+  "scripts": {"vendor": "node tools/vendor.mjs", "test": "python3 -m unittest discover -s tests -v"},
+  "devDependencies": {"dompurify": "3.4.16", "katex": "0.18.9", "marked": "18.0.14", "prismjs": "1.30.0"}
+}

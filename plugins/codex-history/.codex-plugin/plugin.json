@@ -1,0 +1,18 @@
+{
+  "name": "codex-history",
+  "version": "0.1.0+codex.20260924134604",
+  "description": "Browse your Codex conversations with question navigation, Markdown, LaTeX and an answers-only view. Local and private.",
+  "author": {
+    "name": "Codex History contributors"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex History",
+    "shortDescription": "Find any question. Read the whole conversation.",
+    "longDescription": "A local companion reader with searchable question navigation, continuous conversation history, Markdown, syntax highlighting, LaTeX math, dark mode and an answers-only toggle. Bundled rendering assets; no npm/pip installation.",
+    "developerName": "Codex History contributors",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Use $history to open this conversation in the local history reader."
+  }
+}
