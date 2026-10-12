@@ -34,6 +34,61 @@
     }, renderer(item) {return math(item.text, false);},
   }]});
 
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Offline files and some browsers do not expose the Clipboard API.
+    }
+    const focused = document.activeElement;
+    const selection = window.getSelection();
+    const ranges = selection ? Array.from({length: selection.rangeCount}, (_, i) => selection.getRangeAt(i).cloneRange()) : [];
+    const field = document.createElement('textarea');
+    field.value = text;
+    field.readOnly = true;
+    field.className = 'clipboard-fallback';
+    document.body.append(field);
+    try {
+      field.focus({preventScroll: true});
+      field.select();
+      field.setSelectionRange(0, field.value.length);
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      field.remove();
+      focused?.focus({preventScroll: true});
+      if (selection) {
+        selection.removeAllRanges();
+        ranges.forEach(range => selection.addRange(range));
+      }
+    }
+  }
+
+  function copyButton(text, title, className = 'copy-button') {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = className; button.textContent = title;
+    button.setAttribute('aria-label', title);
+    button.title = className === 'message-copy' ? title + ' as Markdown' : title;
+    let copying = false, resetTimer;
+    button.addEventListener('click', async () => {
+      if (copying) return;
+      copying = true;
+      clearTimeout(resetTimer);
+      button.setAttribute('aria-busy', 'true');
+      $('copy-status').textContent = '';
+      const copied = await copyText(text);
+      button.textContent = copied ? 'Copied!' : 'Copy failed';
+      button.dataset.result = copied ? 'success' : 'error';
+      $('copy-status').textContent = copied ? title + ': copied to clipboard.' : 'Could not copy. Select the text and copy it manually.';
+      button.removeAttribute('aria-busy');
+      copying = false;
+      resetTimer = setTimeout(() => {button.textContent = title; delete button.dataset.result;}, 2000);
+    });
+    return button;
+  }
+
   function markdown(text) {
     const container = document.createElement('div');
     container.className = 'markdown';
@@ -62,33 +117,30 @@
       if (grammar && original.length < 100000) code.innerHTML = Prism.highlight(original, grammar, language);
       const header = document.createElement('div'); header.className = 'code-header';
       const label = document.createElement('span'); label.textContent = language;
-      const copy = document.createElement('button'); copy.className = 'copy-button'; copy.textContent = 'Copy';
-      copy.setAttribute('aria-label', 'Copy code');
-      copy.addEventListener('click', async () => {
-        try {await navigator.clipboard.writeText(original); copy.textContent = 'Copied';}
-        catch {copy.textContent = 'Select to copy';}
-        setTimeout(() => {copy.textContent = 'Copy';}, 1600);
-      });
+      const copy = copyButton(original, 'Copy code');
       header.append(label, copy); code.parentElement.prepend(header);
     });
     return container;
   }
 
-  function label(role, detail, symbol) {
-    const row = document.createElement('div'); row.className = 'message-label';
+  function label(role, detail, symbol, text, copyTitle) {
+    const row = document.createElement('header'); row.className = 'message-label';
     const icon = document.createElement('span'); icon.className = 'role-icon'; icon.textContent = symbol;
-    const name = document.createElement('span'); name.textContent = role;
+    icon.setAttribute('aria-hidden', 'true');
+    const identity = document.createElement('div'); identity.className = 'message-identity';
+    const name = document.createElement('span'); name.className = 'message-role'; name.textContent = role;
     const meta = document.createElement('span'); meta.className = 'message-kind'; meta.textContent = detail;
-    row.append(icon, name, meta); return row;
+    identity.append(name, meta);
+    row.append(icon, identity, copyButton(text || '', copyTitle, 'message-copy')); return row;
   }
   const isAnswer = message => message.kind === 'assistant' && message.phase !== 'commentary';
   function renderMessage(message) {
     const node = document.createElement('article'); node.id = message.id; node.className = 'message';
     if (message.kind === 'user') {
       node.classList.add('user'); node.dataset.question = message.question;
-      node.append(label('YOU', 'QUESTION ' + String(message.question).padStart(2, '0'), '↗'), markdown(message.text));
+      node.append(label('QUESTION ' + String(message.question).padStart(2, '0'), 'YOU', 'Q', message.text, 'Copy question'), markdown(message.text));
     } else if (isAnswer(message)) {
-      node.classList.add('assistant'); node.append(label('CODEX', 'FINAL ANSWER', '✳'), markdown(message.text));
+      node.classList.add('assistant'); node.append(label('ANSWER', 'CODEX · FINAL ANSWER', 'A', message.text, 'Copy answer'), markdown(message.text));
     } else {
       node.classList.add('activity'); node.hidden = state.clean;
       const details = document.createElement('details');

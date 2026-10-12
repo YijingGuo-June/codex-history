@@ -29,6 +29,8 @@ You remember asking the question. You remember getting a useful answer. Now it's
 
 Every saved question becomes a navigation point. Search your own words, use **↑ / ↓**, and press **Enter**. This is a jump within the complete conversation: scroll up or down to recover the surrounding context.
 
+Questions and answers have distinct colors, borders, and sticky labels, so you can tell which one you are reading even in a long exchange. Use **Copy question** or **Copy answer** in each header to copy the entire message, preserving its original Markdown, code, and LaTeX. The buttons stay within reach while you scroll and also work in offline snapshots.
+
 | Find it | Read it | Keep it |
 | :--- | :--- | :--- |
 | Searchable question index | Markdown, tables & highlighted code | Single-file HTML export |
