@@ -199,6 +199,7 @@
       }
     });
     restoreAnchor(anchor); updateActive();
+    if ($('picker').open) search();
     if (data.warnings.length) notice(data.warnings.join(' '));
   }
 
@@ -291,8 +292,19 @@
     $('notice').hidden = false; $('notice').replaceChildren(document.createTextNode(text));
     if (action) {const button = document.createElement('button'); button.textContent = 'Load new messages'; button.addEventListener('click', action); $('notice').append(button);}
   }
-  function applyPending() {if (state.pending) {render(state.pending); state.pending = null;} $('notice').hidden = true;}
-  let fetching = false;
+  function applyPending() {
+    if (state.pending) {render(state.pending); state.pending = null;}
+    if (!state.data?.warnings.length) $('notice').hidden = true;
+  }
+  let fetching = false, manualQueued = false, feedbackTimer;
+  function refreshFeedback(text, busy = false) {
+    clearTimeout(feedbackTimer);
+    $('refresh').setAttribute('aria-busy', String(busy));
+    $('refresh').setAttribute('aria-label', text === 'Refresh' ? 'Refresh conversation' : text);
+    $('refresh').querySelector('span').textContent = text;
+    $('refresh-status').textContent = text === 'Refresh' ? '' : text;
+    if (!busy && text !== 'Refresh') feedbackTimer = setTimeout(() => refreshFeedback('Refresh'), 2400);
+  }
   async function refresh(manual = false) {
     if (embedded) {
       if (!state.data) {
@@ -302,21 +314,41 @@
       }
       return;
     }
-    if (fetching) return;
+    if (manual) refreshFeedback('Refreshing…', true);
+    if (fetching) {if (manual) manualQueued = true; return;}
     fetching = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch('/api/history?token=' + encodeURIComponent(token), {cache: 'no-store'});
+      const response = await fetch('/api/history?token=' + encodeURIComponent(token), {cache: 'no-store', signal: controller.signal});
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'The local viewer is unavailable.');
-      if (!state.data) {render(data); $('notice').hidden = true; if (data.questions.length) openPicker();}
+      if (!state.data) {render(data); if (!data.warnings.length) $('notice').hidden = true; if (data.questions.length) openPicker(); if (manual) refreshFeedback('Updated');}
       else if (data.revision !== state.data.revision) {
         state.pending = data;
-        if (manual) applyPending(); else notice('New messages are available. Your reading position has been kept.', applyPending);
-      } else if (manual) {$('notice').hidden = true;}
-    } catch (error) {notice('Cannot refresh. Your loaded conversation is still here. Reopen the viewer if its two-hour session has ended. ' + error.message);}
-    finally {fetching = false;}
+        if (manual) {applyPending(); refreshFeedback('Updated');}
+        else notice('New messages are available. Your reading position has been kept.', applyPending);
+      } else {
+        state.pending = null;
+        if (!data.warnings.length) $('notice').hidden = true;
+        if (manual) refreshFeedback('Up to date');
+      }
+    } catch (error) {
+      notice('Cannot refresh right now. Your loaded conversation is still here. Try Refresh again; if the local reader has stopped, reopen it from Codex. ' + (error.name === 'AbortError' ? 'The request timed out.' : error.message));
+      if (manual) refreshFeedback('Refresh failed');
+    } finally {
+      clearTimeout(timeout);
+      fetching = false;
+      // A click during background polling must still perform a fresh read.
+      if (manualQueued) {manualQueued = false; refresh(true);}
+    }
   }
   $('refresh').addEventListener('click', () => refresh(true));
   refresh();
-  if (!embedded) setInterval(() => {if (!document.hidden) refresh();}, 5000);
+  if (!embedded) {
+    setInterval(() => {if (!document.hidden) refresh();}, 5000);
+    // Hidden tabs keep the reader alive without repeatedly loading the transcript.
+    setInterval(() => {if (document.hidden) fetch('/api/keepalive?token=' + encodeURIComponent(token), {cache: 'no-store'}).catch(() => {});}, 60000);
+    document.addEventListener('visibilitychange', () => {if (!document.hidden) refresh();});
+  }
 })();

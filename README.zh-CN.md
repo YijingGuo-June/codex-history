@@ -8,7 +8,7 @@
 
 [![MIT License](https://img.shields.io/badge/license-MIT-d6c18e)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-477c93)](#安装)
-[![默认离线](https://img.shields.io/badge/local-offline%20by%20default-697b67)](#聊天记录留在本机)
+[![本地可刷新](https://img.shields.io/badge/local-refreshable%20reader-697b67)](#聊天记录留在本机)
 [![Checks](https://github.com/YijingGuo-June/codex-history/actions/workflows/checks.yml/badge.svg)](https://github.com/YijingGuo-June/codex-history/actions/workflows/checks.yml)
 
 [English](README.md) · **简体中文** · [安装](#安装) · [常见问题](#常见问题)
@@ -70,7 +70,7 @@ $codex-history:history
 
 也可以输入 `$history` 搜索本插件的技能，或通过 `/skills` 查找。
 
-程序会生成离线 HTML 快照，并请求默认浏览器打开。默认模式**不监听端口、不启动后台服务**；如果宿主阻止打开浏览器，会返回生成文件的路径。再次调用即可包含新消息。
+程序默认在浏览器中打开可刷新的本地阅读页。继续在 Codex 聊天后，点击 **Refresh** 即可直接加载最新保存的问题和回答，同时保留阅读位置；阅读器运行期间不必再次调用技能。如果宿主阻止打开浏览器，会返回本地阅读页链接。
 
 > 这是标准 Codex 插件提供的**本地浏览器阅读页**，不替换 Codex 程序，也不注册原生 `/history` 命令。接口依据 Codex CLI `0.155.0-alpha.9` 检查。
 
@@ -121,7 +121,7 @@ ln -s "$PWD/plugins/codex-history/scripts/history.py" "$HOME/.local/bin/codex-hi
 
 ```text
 Codex 会话记录             Codex History                 你的浏览器
-SQLite / rollout JSONL ──▶ 本地只读程序 ────────────────▶ 离线 HTML 快照
+SQLite / rollout JSONL ──▶ 本地只读程序 ────────────────▶ 可刷新的本地阅读页
                            精确选择当前会话               Markdown · 代码 · 公式
 ```
 
@@ -129,16 +129,20 @@ SQLite / rollout JSONL ──▶ 本地只读程序 ─────────�
 - 字体和渲染库全部随插件提供；远程图片不自动加载，外部链接由你点击后打开。
 - 只读原始记录，不修改数据库、不迁移会话、不更改 Codex 配置。
 - 使用 `CODEX_THREAD_ID` 选择会话，不猜测“最近更新的聊天”。
-- 默认快照保存在私有临时目录，包含会话内容，由你或系统的临时文件清理机制删除。分享前请确认内容。
+- 可选的离线快照保存在私有临时目录，包含会话内容，由你或系统的临时文件清理机制删除。分享前请确认内容。
 - 原始 HTML 显示为文本，生成的 Markdown 经过清理，KaTeX 使用 `trust: false`。不展示原始或加密推理字段。
 
-### 需要实时更新时
+### 继续聊天后，直接刷新
+
+![点击 Refresh 后加载的新问题和回答](docs/images/refresh-reader.png)
 
 ```sh
-python3 plugins/codex-history/scripts/history.py open --thread-id 会话UUID --live
+python3 plugins/codex-history/scripts/history.py open --thread-id 会话UUID
 ```
 
-页面发现新消息后提示你加载，并保留阅读位置。此模式仅监听 `127.0.0.1`，每次使用随机访问令牌，检查 Host / Origin，两小时后自动退出。沙箱可能阻止本地服务；默认离线模式不需要这项权限。
+点击 **Refresh** 会一次完成读取和加载。后台检查发现新消息时只提示，不打断阅读；也可以点击提示中的 **Load new messages**。服务仅监听 `127.0.0.1`，每次使用随机访问令牌，并检查 Host / Origin。页面打开期间会保持服务运行，切到后台也有效；没有经过验证的阅读页请求达两小时后自动退出。`--lifetime` 可调整这一闲置超时，`--live` 仍可显式选择默认模式。
+
+需要固定的离线快照时，使用 `open --offline`，不监听端口、不启动后台进程，但无法加载生成之后的新消息。以前生成的 HTML 快照仍是固定内容；用新版启动器打开一次阅读页后即可使用 Refresh。沙箱可能阻止本地服务，不需要刷新时仍可使用离线模式。
 
 ## 指定会话或导出
 

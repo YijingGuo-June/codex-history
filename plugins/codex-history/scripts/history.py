@@ -22,6 +22,27 @@ from standalone import build_html
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 
 
+class ViewerServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.last_activity = time.monotonic()
+
+    def touch(self):
+        self.last_activity = time.monotonic()
+
+
+def expire_when_idle(server, lifetime, stopped):
+    """Keep an open reader usable; stop after its last authenticated request."""
+    while not stopped.is_set():
+        remaining = lifetime - (time.monotonic() - server.last_activity)
+        if remaining <= 0:
+            server.shutdown()
+            return
+        stopped.wait(remaining)
+
+
 class DemoStore:
     def read(self):
         return package("demo-conversation", [
@@ -76,12 +97,17 @@ def make_handler(store, token):
             if not hmac.compare_digest(supplied.encode(), token.encode()):
                 return self.send(403, b"Open the private viewer link printed by Codex History.")
             if request.path == "/api/history":
+                self.server.touch()
                 try:
                     body = json.dumps(store.read(), ensure_ascii=False).encode()
                     self.send(200, body, "application/json; charset=utf-8")
                 except (HistoryError, OSError, ValueError) as exc:
                     self.send(503, json.dumps({"error": str(exc)}).encode(), "application/json")
+            elif request.path == "/api/keepalive":
+                self.server.touch()
+                self.send(204, b"")
             elif request.path in ("/", "/viewer.js", "/viewer.css"):
+                self.server.touch()
                 filename, mime = {"/": ("viewer.html", "text/html; charset=utf-8"),
                                   "/viewer.js": ("viewer.js", "text/javascript; charset=utf-8"),
                                   "/viewer.css": ("viewer.css", "text/css; charset=utf-8")}[request.path]
@@ -98,8 +124,7 @@ def serve(args, ready=None):
     store = DemoStore() if args.demo else HistoryStore(args.thread_id, args.home, args.sqlite_home, args.file)
     store.read()  # Fail before reporting a usable link.
     token = secrets.token_urlsafe(32)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(store, token))
-    server.daemon_threads = True
+    server = ViewerServer(("127.0.0.1", 0), make_handler(store, token))
     url = "http://127.0.0.1:{}/?token={}".format(server.server_port, token)
     if ready:
         # Release the startup log before the launcher removes its temp directory
@@ -111,15 +136,15 @@ def serve(args, ready=None):
         print(url, flush=True)
     if not args.no_open and not ready:
         webbrowser.open(url)
-    timer = threading.Timer(args.lifetime, server.shutdown)
-    timer.daemon = True
-    timer.start()
+    stopped = threading.Event()
+    expiry = threading.Thread(target=expire_when_idle, args=(server, args.lifetime, stopped), daemon=True)
+    expiry.start()
     try:
         server.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:
         pass
     finally:
-        timer.cancel()
+        stopped.set()
         server.server_close()
 
 
@@ -157,8 +182,14 @@ def launch(args):
                 child.terminate()
                 child.wait(timeout=5)
                 raise HistoryError("Viewer startup timed out.")
-        result["expiresInSeconds"] = args.lifetime
-        result["browserOpened"] = False if args.no_open else webbrowser.open(result["url"])
+        result["mode"] = "live"
+        result["idleTimeoutSeconds"] = args.lifetime
+        result["browserOpened"] = False
+        if not args.no_open:
+            try:
+                result["browserOpened"] = webbrowser.open(result["url"])
+            except (OSError, webbrowser.Error) as exc:
+                result["browserOpenError"] = str(exc)
         print(json.dumps(result, ensure_ascii=False))
 
 
@@ -189,9 +220,11 @@ def main():
     parser.add_argument("--file", help="Read one legacy rollout JSONL file instead of SQLite")
     parser.add_argument("--demo", action="store_true", help="Use synthetic data; never access your sessions")
     parser.add_argument("--no-open", action="store_true", help="Print a private URL without opening a browser")
-    parser.add_argument("--live", action="store_true", help="Use the optional loopback server instead of the default offline snapshot")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--live", action="store_true", help="Open the refreshable local reader (the default)")
+    mode.add_argument("--offline", action="store_true", help="Open a fixed HTML snapshot without a local server or live refresh")
     parser.add_argument("--output", help="HTML destination for export; existing files are never overwritten")
-    parser.add_argument("--lifetime", type=int, default=7200, help="Server lifetime in seconds (default: 7200)")
+    parser.add_argument("--lifetime", type=int, default=7200, help="Idle timeout in seconds after the last reader request (default: 7200)")
     parser.add_argument("--ready-file", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.lifetime < 1:
@@ -211,10 +244,10 @@ def main():
                               "messages": len(data["messages"]), "warnings": data["warnings"]}))
         elif args.command == "serve":
             serve(args, Path(args.ready_file) if args.ready_file else None)
-        elif args.live:
-            launch(args)
-        else:
+        elif args.offline:
             open_snapshot(args)
+        else:
+            launch(args)
     except (HistoryError, OSError, ValueError) as exc:
         print("Codex History: {}".format(exc), file=sys.stderr)
         return 1

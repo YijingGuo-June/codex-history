@@ -10,12 +10,12 @@ import unittest
 from argparse import Namespace
 from contextlib import redirect_stdout
 import io
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "plugins/codex-history/scripts"
 sys.path.insert(0, str(SCRIPTS))
 from history_reader import HistoryStore, HistoryError, read_rollout, entry
-from history import DemoStore, make_handler, ThreadingHTTPServer, open_snapshot
+from history import DemoStore, make_handler, ViewerServer, expire_when_idle, main, open_snapshot
 from standalone import build_html
 
 
@@ -103,7 +103,7 @@ class ReaderTests(unittest.TestCase):
 
 class ServerTests(unittest.TestCase):
     def setUp(self):
-        self.server = ThreadingHTTPServer(('127.0.0.1',0),make_handler(DemoStore(),'secret-test-token'))
+        self.server = ViewerServer(('127.0.0.1',0),make_handler(DemoStore(),'secret-test-token'))
         self.thread = threading.Thread(target=self.server.serve_forever,daemon=True); self.thread.start()
         self.addCleanup(self.stop)
 
@@ -140,9 +140,68 @@ class ServerTests(unittest.TestCase):
         self.assertIn(b'/vendor/katex.js?token=secret-test-token',body)
         self.assertIn("connect-src 'self'",headers['Content-Security-Policy'])
 
+    def test_refresh_reads_appended_messages_from_only_the_selected_conversation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'thread_history_1.sqlite'
+            with sqlite3.connect(path) as conn:
+                conn.execute('CREATE TABLE thread_items(thread_id TEXT,item_json TEXT,created_at_ms INTEGER,rollout_ordinal INTEGER)')
+                conn.execute('INSERT INTO thread_items VALUES(?,?,?,?)', ('selected', json.dumps({'type':'userMessage','content':[{'text':'First question'}]}), 0, 0))
+            self.server.RequestHandlerClass = make_handler(HistoryStore('selected', home=directory), 'secret-test-token')
+            first = json.loads(self.request('/api/history?token=secret-test-token')[2])
+            with sqlite3.connect(path) as conn:
+                for ordinal, item in enumerate([
+                    {'type':'agentMessage','text':'New answer','phase':'final_answer'},
+                    {'type':'userMessage','content':[{'text':'New question'}]},
+                ], 1):
+                    conn.execute('INSERT INTO thread_items VALUES(?,?,?,?)', ('selected',json.dumps(item),ordinal,ordinal))
+                conn.execute('INSERT INTO thread_items VALUES(?,?,?,?)', ('other',json.dumps({'type':'agentMessage','text':'OTHER CONVERSATION'}),0,0))
+            status, headers, body = self.request('/api/history?token=secret-test-token')
+            updated = json.loads(body)
+            self.assertEqual(status, 200)
+            self.assertEqual(headers['Cache-Control'], 'no-store')
+            self.assertNotEqual(first['revision'], updated['revision'])
+            self.assertEqual([m['text'] for m in updated['messages']], ['First question', 'New answer', 'New question'])
+            self.assertEqual(updated['messages'][0]['id'], first['messages'][0]['id'])
+            self.assertEqual(len(updated['questions']), 2)
+
+    def test_only_authenticated_reader_requests_renew_idle_timeout(self):
+        with patch('history.time.monotonic', return_value=42):
+            previous = self.server.last_activity
+            self.assertEqual(self.request('/api/keepalive?token=wrong')[0], 403)
+            self.assertEqual(self.request('/api/keepalive?token=secret-test-token', {'Origin':'https://attacker.example'})[0], 403)
+            self.assertEqual(self.request('/vendor/marked.js')[0], 200)
+            self.assertEqual(self.server.last_activity, previous)
+            self.assertEqual(self.request('/api/keepalive?token=secret-test-token')[0], 204)
+            self.assertEqual(self.server.last_activity, 42)
+        with patch('history.time.monotonic', return_value=43):
+            self.assertEqual(self.request('/api/history?token=secret-test-token')[0], 200)
+            self.assertEqual(self.server.last_activity, 43)
+
+
+class LauncherTests(unittest.TestCase):
+    def test_open_defaults_to_refreshable_reader_and_offline_is_explicit(self):
+        with patch('sys.argv', ['history']), patch('history.launch') as live, patch('history.open_snapshot') as offline:
+            self.assertEqual(main(), 0)
+            live.assert_called_once()
+            offline.assert_not_called()
+        with patch('sys.argv', ['history', 'open', '--offline']), patch('history.launch') as live, patch('history.open_snapshot') as offline:
+            self.assertEqual(main(), 0)
+            live.assert_not_called()
+            offline.assert_called_once()
+
+    def test_activity_extends_expiry_until_reader_is_idle(self):
+        server = Mock(last_activity=0)
+        stopped = Mock()
+        stopped.is_set.return_value = False
+        stopped.wait.side_effect = lambda seconds: setattr(server, 'last_activity', 5)
+        with patch('history.time.monotonic', side_effect=[0, 10, 15]):
+            expire_when_idle(server, 10, stopped)
+        self.assertEqual([call.args[0] for call in stopped.wait.call_args_list], [10, 5])
+        server.shutdown.assert_called_once()
+
 
 class ExportTests(unittest.TestCase):
-    def test_default_snapshot_requests_browser_without_binding_socket(self):
+    def test_explicit_snapshot_requests_browser_without_binding_socket(self):
         with tempfile.TemporaryDirectory() as directory:
             output = io.StringIO()
             with patch('history.tempfile.mkdtemp', return_value=directory), patch('history.webbrowser.open', return_value=True) as browser, patch('history.ThreadingHTTPServer', side_effect=AssertionError('Must not bind a port')):

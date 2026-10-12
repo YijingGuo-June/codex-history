@@ -32,7 +32,8 @@
     <header class="toolbar">
       <div class="breadcrumb"><span class="little-mark">↗</span><span>Conversation</span><span class="crumb-divider">/</span><span id="session-label">Loading…</span></div>
       <div class="toolbar-actions">
-        <button id="refresh" class="quiet-button" title="Check for new messages">↻ <span>Refresh</span></button>
+        <button id="refresh" class="quiet-button" title="Load the latest messages" aria-label="Refresh conversation">↻ <span>Refresh</span></button>
+        <span id="refresh-status" class="sr-only" role="status" aria-live="polite"></span>
         <button id="toggle-details" class="filter-button" aria-pressed="true" title="Hide or show activity: Ctrl+H, or Alt+H if your browser reserves Ctrl+H"><span class="toggle-track"><span></span></span><span>Answers only</span><kbd>⌃ H</kbd></button>
         <button id="theme" class="icon-button" aria-label="Switch color theme" title="Switch theme">◐</button>
       </div>

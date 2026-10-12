@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "Codex History",
     "shortDescription": "Find any question. Read the whole conversation.",
-    "longDescription": "A local companion reader with searchable question navigation, continuous conversation history, Markdown, syntax highlighting, LaTeX math, dark mode and an answers-only toggle. Bundled rendering assets; no npm/pip installation.",
+    "longDescription": "A refreshable local companion reader with searchable question navigation, continuous conversation history, Markdown, syntax highlighting, LaTeX math, dark mode, message copying and an answers-only toggle. Load new messages with Refresh; optional offline snapshots. Bundled rendering assets; no npm/pip installation.",
     "developerName": "Codex History contributors",
     "category": "Productivity",
     "capabilities": [],

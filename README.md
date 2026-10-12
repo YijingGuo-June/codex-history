@@ -8,7 +8,7 @@ Jump to any question. Keep the context. Give your answers room to breathe.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-d6b18e)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-477c93)](#quick-start)
-[![Local & offline](https://img.shields.io/badge/local-offline%20by%20default-697b67)](#your-conversation-stays-yours)
+[![Local & private](https://img.shields.io/badge/local-refreshable%20reader-697b67)](#your-conversation-stays-yours)
 [![Checks](https://github.com/YijingGuo-June/codex-history/actions/workflows/checks.yml/badge.svg)](https://github.com/YijingGuo-June/codex-history/actions/workflows/checks.yml)
 
 **English** · [简体中文](README.zh-CN.md) · [Quick start](#quick-start) · [Troubleshooting](#troubleshooting)
@@ -70,7 +70,7 @@ $codex-history:history
 
 You can also type `$history` and pick this plugin's skill, or find it through `/skills`.
 
-The helper creates an offline HTML snapshot and asks your default browser to open it. If the host blocks browser launching, it returns a link to the generated file. **No listening port or background server is required by default.** Invoke again to include newer messages.
+The helper opens a refreshable local reader in your default browser. Continue chatting in Codex, then click **Refresh** to load the latest saved questions and answers immediately while keeping your reading position. No repeated skill invocation is needed while the reader is running. If browser launching is blocked, the helper returns the local reader link.
 
 > **What gets installed?** A standard Codex plugin with a skill and a bundled local reader. The viewer opens in your browser. It does not replace the Codex executable or add a native `/history` command. Checked against Codex CLI `0.155.0-alpha.9`.
 
@@ -121,7 +121,7 @@ The **Answers only** button hides saved reasoning summaries, tool output, and pr
 
 ```text
 Your Codex session             Codex History                 Your browser
-SQLite / rollout JSONL  ──▶  Read-only local helper  ──▶  Offline HTML snapshot
+SQLite / rollout JSONL  ──▶  Read-only local helper  ──▶  Refreshable local reader
                              exact conversation ID          Markdown · code · math
 ```
 
@@ -129,16 +129,20 @@ SQLite / rollout JSONL  ──▶  Read-only local helper  ──▶  Offline HT
 - **Self-contained rendering.** Fonts and libraries are bundled. Remote images do not load automatically; external links open only when clicked.
 - **Read-only source access.** The reader does not modify sessions, migrate databases, or change Codex configuration.
 - **Exact session selection.** It uses `CODEX_THREAD_ID`; it never guesses the most recently updated conversation.
-- **Private snapshots.** Default exports live in a private temporary directory and contain the conversation. They remain until you or normal temporary-file cleanup remove them. Share them only deliberately.
+- **Private snapshots.** Optional offline snapshots live in a private temporary directory and contain the conversation. They remain until you or normal temporary-file cleanup remove them. Share them only deliberately.
 - **Defensive rendering.** Raw HTML is shown as text, generated Markdown is sanitized, and KaTeX uses `trust: false`. Raw or encrypted reasoning payloads are not displayed.
 
-### Optional live mode
+### Refresh as the conversation grows
+
+![New questions and answers loaded through Refresh](docs/images/refresh-reader.png)
 
 ```sh
-python3 plugins/codex-history/scripts/history.py open --thread-id UUID --live
+python3 plugins/codex-history/scripts/history.py open --thread-id UUID
 ```
 
-Live mode detects updates and lets you apply them while preserving your reading position. It binds to **127.0.0.1**, uses a random per-launch access token, checks Host/Origin headers, and expires after two hours. A sandbox may block local server access; the default offline mode avoids that requirement.
+Click **Refresh** to fetch and load new messages in one step. Background checks announce updates without moving your reading position; you can also use **Load new messages** in that notice. The reader binds to **127.0.0.1**, uses a random per-launch access token, and checks Host/Origin headers. Open tabs keep it alive, including background tabs; it exits after two hours without an authenticated reader request. `--lifetime` changes that idle timeout, and `--live` remains an alias for the default.
+
+For a fixed offline snapshot with no listening port or background process, use `open --offline`. It cannot load messages saved after it was generated. Existing HTML snapshots also remain fixed; open the reader once with the updated launcher to use Refresh. A sandbox may block local server access; offline mode remains available when refresh is not needed.
 
 ## Pick a session or export it
 
